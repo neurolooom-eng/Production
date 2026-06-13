@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+*.tsbuildinfo
+
+# Local SQLite database (regenerate with `npm run db:reset`)
+server/data.sqlite
+server/data.sqlite-wal
+server/data.sqlite-shm
+
+# Env
+.env
+.env.local
