@@ -1,24 +1,24 @@
 // Seeds a realistic ICU ventilator manufacturer dataset with full referential
 // integrity along the traceability spine.
 import { nanoid } from 'nanoid';
-import { db as getDb } from './connection.js';
 import { columnsFor } from './schema.js';
 import { resourceMap } from '../registry/index.js';
 import { hashPassword } from '../auth.js';
+import { store } from '../store/index.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const daysFromNow = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
 const now = () => new Date().toISOString();
 
-export function seed() {
-  const db = getDb();
+// Backend-agnostic seed: builds rows then bulk-inserts through the active store.
+export async function seed() {
+  const pending = {}; // key -> rows[]
 
   function insert(key, obj) {
     const resource = resourceMap[key];
     const cols = columnsFor(resource).map((f) => f.name);
     if (key === 'users') cols.push('password_hash');
     const id = obj.id || nanoid(12);
-    const all = ['id', ...cols, 'created_at', 'updated_at', 'created_by', 'updated_by'];
     const data = { id, created_at: now(), updated_at: now(), created_by: 'seed', updated_by: 'seed' };
     for (const c of cols) {
       let v = obj[c];
@@ -29,9 +29,7 @@ export function seed() {
       if (typeof v === 'boolean') v = v ? 1 : 0;
       data[c] = v ?? null;
     }
-    db.prepare(
-      `INSERT INTO "${key}" (${all.map((c) => `"${c}"`).join(',')}) VALUES (${all.map((c) => `@${c}`).join(',')})`
-    ).run(data);
+    (pending[key] ||= []).push(data);
     return id;
   }
 
@@ -177,5 +175,9 @@ export function seed() {
   insert('notifications', { title: 'Flow sensor stock below minimum', kind: 'Alert', assignee: 'Pat Production', due_date: today(), priority: 'High', status: 'Open', link: 'materials/PN-FLOW-02' });
   insert('notifications', { title: 'SOP-014 awaiting approval', kind: 'Approval', assignee: 'Alice Admin', due_date: daysFromNow(2), priority: 'Medium', status: 'Open', link: 'documents/SOP-014' });
 
-  console.log('Seed complete.');
+  // ---- Flush all collected rows through the active store ----
+  for (const [key, rows] of Object.entries(pending)) {
+    await store().bulkInsert(key, rows);
+  }
+  console.log(`Seed complete (${Object.values(pending).reduce((a, r) => a + r.length, 0)} records).`);
 }

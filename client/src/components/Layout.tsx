@@ -17,6 +17,7 @@ export function Layout() {
   const { data: meta } = useMeta();
   const nav = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
 
@@ -34,33 +35,42 @@ export function Layout() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* Sidebar */}
-      <aside className={`${collapsed ? 'w-16' : 'w-64'} shrink-0 bg-surface border-r border-line flex flex-col transition-all`}>
+      {/* Mobile backdrop */}
+      {mobileOpen && <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />}
+
+      {/* Sidebar — static on desktop, slide-in drawer on mobile */}
+      <aside className={`${collapsed ? 'md:w-16' : 'md:w-64'} w-64 shrink-0 bg-surface border-r border-line flex flex-col transition-transform md:transition-all
+        fixed md:static inset-y-0 left-0 z-50 ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
         <div className="h-14 flex items-center gap-2 px-4 border-b border-line text-brand-600 font-bold">
-          <L.Wind size={22} />{!collapsed && <span>VentVerse</span>}
+          <L.Wind size={22} /><span className={collapsed ? 'md:hidden' : ''}>VentVerse</span>
+          <button className="ml-auto md:hidden btn-ghost p-1" onClick={() => setMobileOpen(false)}><L.X size={18} /></button>
         </div>
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="flex-1 overflow-y-auto py-2" onClick={() => setMobileOpen(false)}>
           <NavItem to="/" icon="LayoutDashboard" label="Dashboard" collapsed={collapsed} end />
           <NavItem to="/traceability" icon="GitBranch" label="Traceability" collapsed={collapsed} />
           {GROUP_ORDER.filter((g) => g !== 'Overview').map((g) => (groups[g]?.length ? (
             <div key={g} className="mt-3">
-              {!collapsed && <div className="px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-soft flex items-center gap-1"><Icon name={GROUP_ICON[g]} size={12} /> {g}</div>}
+              <div className={`px-4 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-soft flex items-center gap-1 ${collapsed ? 'md:hidden' : ''}`}><Icon name={GROUP_ICON[g]} size={12} /> {g}</div>
               {groups[g].map((r) => (
                 <NavItem key={r.key} to={`/m/${r.key}`} icon={r.icon} label={r.plural} collapsed={collapsed} />
               ))}
             </div>
           ) : null))}
         </nav>
-        <button className="p-3 text-ink-soft hover:bg-surface-3 border-t border-line flex items-center gap-2" onClick={() => setCollapsed((c) => !c)}>
+        <button className="p-3 text-ink-soft hover:bg-surface-3 border-t border-line hidden md:flex items-center gap-2" onClick={() => setCollapsed((c) => !c)}>
           {collapsed ? <L.ChevronRight size={18} /> : <><L.ChevronLeft size={18} /> Collapse</>}
         </button>
       </aside>
 
       {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 shrink-0 flex items-center gap-3 px-4 border-b border-line bg-surface">
-          <div className="font-semibold">ICU Ventilator Production Management</div>
-          <span className="chip bg-brand-100 text-brand-700">{meta?.role}</span>
+        <header className="h-14 shrink-0 flex items-center gap-3 px-3 md:px-4 border-b border-line bg-surface">
+          <button className="md:hidden btn-ghost p-1.5" onClick={() => setMobileOpen(true)}><L.Menu size={20} /></button>
+          <div className="font-semibold text-sm md:text-base truncate">
+            <span className="hidden sm:inline">ICU Ventilator Production Management</span>
+            <span className="sm:hidden">VentVerse</span>
+          </div>
+          <span className="chip bg-brand-100 text-brand-700 hidden sm:inline-flex">{meta?.role}</span>
           <div className="ml-auto flex items-center gap-2">
             {/* Theme switcher */}
             <div className="relative">
@@ -127,7 +137,8 @@ function NavItem({ to, icon, label, collapsed, end }: { to: string; icon: string
       className={({ isActive }) =>
         `flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${isActive ? 'bg-brand-100 text-brand-700 font-medium border-r-2 border-brand-600' : 'text-ink-soft hover:bg-surface-3 hover:text-ink'}`}>
       <Icon name={icon} size={17} />
-      {!collapsed && <span className="truncate">{label}</span>}
+      {/* Hidden only on desktop when collapsed; always visible in mobile drawer */}
+      <span className={`truncate ${collapsed ? 'md:hidden' : ''}`}>{label}</span>
     </NavLink>
   );
 }
