@@ -7,8 +7,10 @@ style electronic records & signatures).
 
 > **Status: Proof of Concept.** The architecture is production-grade and
 > metadata-driven; templates are placeholders ready for your controlled
-> documents, and the database is a local SQLite file seeded with realistic
-> demo data.
+> documents. The storage layer is pluggable: it runs zero-config on a local
+> **SQLite** file by default, or against **Google Sheets** as the backend.
+> Both are seeded with realistic demo data. The UI is fully responsive and
+> usable on mobile.
 
 ---
 
@@ -41,9 +43,10 @@ schema, and that single declaration drives the database table, the REST API,
 and the entire UI (tables, forms, permissions, ISO clause tagging).
 
 ```
-/server   Express + better-sqlite3 — auth (JWT/bcrypt), RBAC, audit trail,
-          generic CRUD engine, analytics & traceability endpoints
+/server   Express — auth (JWT/bcrypt), RBAC, audit trail, generic CRUD engine,
+          analytics & traceability endpoints
           src/registry/*  <- the single source of truth (all modules)
+          src/store/*     <- pluggable storage (SQLite | Google Sheets)
 /client   React + TypeScript + Vite + Tailwind — shared design system + pages
 ```
 
@@ -98,12 +101,72 @@ full chain for any serial number (try `X900-260001`).
 | `npm run dev:client`   | Web app only (http://localhost:5173)          |
 | `npm run db:reset`     | Drop, rebuild and reseed the database         |
 | `npm run build`        | Production build of the web app               |
+| `npm start`            | Serve API **and** built web app on one port   |
+
+---
+
+## Storage backends
+
+The data layer is abstracted behind a small async store interface
+(`server/src/store/`), so the same API and UI run on either backend. Select it
+with the `STORAGE` environment variable.
+
+### SQLite (default, zero-config)
+
+```bash
+STORAGE=sqlite   # default — data lives in server/data.sqlite
+```
+
+### Google Sheets
+
+Uses one tab per module (auto-created with a header row) in a single
+spreadsheet, written through a Google Cloud **service account**.
+
+1. **Create a service account** in the Google Cloud console and download its
+   JSON key. (Enable the *Google Sheets API* for the project.)
+2. **Create / pick a spreadsheet** and copy its ID from the URL
+   (`https://docs.google.com/spreadsheets/d/<THIS_ID>/edit`).
+3. **Share** the spreadsheet with the service account's
+   `client_email` as an **Editor**.
+4. Set the environment variables:
+
+```bash
+STORAGE=sheets
+GOOGLE_SHEET_ID=<your spreadsheet id>
+# Paste the full key JSON on one line:
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account", ...}
+# ...or instead point at a key file:
+# GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+```
+
+5. Seed it once: `npm run db:reset` (creates the tabs and demo data).
+
+See `.env.example` for the full template.
+
+---
+
+## Deploy (mobile access over HTTPS)
+
+In production the Express server serves both the API and the built web app on a
+single port, so any HTTPS host that runs a Node/Docker service works — open the
+resulting URL on your phone.
+
+```bash
+npm install && npm run build && npm start   # one port, serves API + web app
+```
+
+A **`Dockerfile`** and **`render.yaml`** blueprint are included. On
+[Render](https://render.com): *New → Blueprint → connect this repo*, then set
+the secret env vars (`JWT_SECRET`, plus the `GOOGLE_*` vars if using Sheets)
+under the service's **Environment** tab. The same image runs on Fly.io, Railway,
+Cloud Run, or any container host.
 
 ## Notes & next steps
 
 - Templates are intentionally **placeholders** — upload your controlled forms,
   certificates and labels via the Templates module.
-- SQLite keeps the POC zero-config; the data layer is isolated so a swap to
-  PostgreSQL is straightforward.
+- SQLite keeps the POC zero-config; the data layer is isolated (see
+  `server/src/store/`) so SQLite, Google Sheets, or a future PostgreSQL adapter
+  are drop-in interchangeable.
 - Roadmap hooks already scoped: barcode/QR scanning, PWA/offline, AI-assisted
   NCR triage, multi-site & multi-language.

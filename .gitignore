@@ -12,3 +12,7 @@ server/data.sqlite-shm
 # Env
 .env
 .env.local
+
+# vite cache
+.vite/
+**/.vite/

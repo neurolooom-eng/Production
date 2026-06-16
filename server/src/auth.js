@@ -1,7 +1,7 @@
 // Authentication (JWT + bcrypt) and RBAC middleware.
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db } from './db/connection.js';
+import { store } from './store/index.js';
 import { audit } from './audit.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vpms-dev-secret-change-me';
@@ -11,8 +11,9 @@ export function hashPassword(pw) {
   return bcrypt.hashSync(pw, 10);
 }
 
-export function login(username, password) {
-  const user = db().prepare('SELECT * FROM users WHERE username = ? AND active = 1').get(username);
+export async function login(username, password) {
+  const users = await store().list('users');
+  const user = users.find((u) => u.username === username && (u.active === 1 || u.active === true || u.active === '1'));
   if (!user || !user.password_hash || !bcrypt.compareSync(password, user.password_hash)) {
     return null;
   }
@@ -21,7 +22,7 @@ export function login(username, password) {
     JWT_SECRET,
     { expiresIn: TOKEN_TTL }
   );
-  audit({ actor: user.username, action: 'LOGIN', resource: 'users', recordId: user.id, summary: 'User logged in' });
+  await audit({ actor: user.username, action: 'LOGIN', resource: 'users', recordId: user.id, summary: 'User logged in' });
   return { token, user: publicUser(user) };
 }
 
